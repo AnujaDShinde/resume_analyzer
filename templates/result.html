@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>ATS Result</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:Arial; padding:18px; max-width:1100px; margin:auto}
+    .flex{display:flex;gap:18px;align-items:flex-start}
+    .card{padding:12px;border:1px solid #ddd;border-radius:8px;background:#fafafa}
+    pre{white-space:pre-wrap; word-wrap:break-word; max-height:300px; overflow:auto; padding:8px}
+    .list{max-height:220px; overflow:auto}
+    .small{font-size:0.9rem;color:#444}
+  </style>
+</head>
+<body>
+  <h1>Analysis Result</h1>
+
+  <div class="flex">
+    <div class="card" style="flex:0 0 360px; text-align:center;">
+      <h3>ATS Score</h3>
+      <canvas id="doughnutChart" width="250" height="250"></canvas>
+      <p style="font-size:18px"><strong>{{ ats_score }}%</strong></p>
+      <p class="small">{{ summary_text }}</p>
+    </div>
+
+    <div style="flex:1">
+      <div class="card">
+        <h3>Keyword Match</h3>
+        <canvas id="barChart" width="600" height="200"></canvas>
+        <p>Matched: <strong>{{ matched_keywords|length }}</strong> &nbsp; | &nbsp; Missing: <strong>{{ missing_keywords|length }}</strong></p>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Missing keywords (priority)</h3>
+        {% if missing_keywords %}
+          <ol class="list">
+            {% for kw in missing_keywords %}
+              <li>{{ kw }}</li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p>No significant missing keywords. Good!</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="flex">
+    <div class="card" style="flex:1">
+      <h3>Top matching sample roles (if available)</h3>
+      {% if job_matches %}
+        <ul>
+          {% for jm in job_matches[:5] %}
+            <li><strong>{{ jm.title }}</strong> — Score: {{ jm.score }}% — Matched: {{ jm.matched_count }} / Missing: {{ jm.missing_count }}</li>
+          {% endfor %}
+        </ul>
+        <canvas id="topJobsChart" width="600" height="200"></canvas>
+      {% else %}
+        <p class="small">No sample job postings found in data/jobs.csv.</p>
+      {% endif %}
+    </div>
+
+    <div class="card" style="flex:0 0 360px">
+      <h3>Trend (past runs for this role)</h3>
+      <canvas id="trendChart" width="320" height="220"></canvas>
+
+      <h4 style="margin-top:12px;">Optimization tips</h4>
+      {% if optimization_tips %}
+        <ul>
+          {% for tip in optimization_tips %}
+            <li>{{ tip }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="small">No immediate optimization tips.</p>
+      {% endif %}
+
+      {% if suggestions %}
+        <h4 style="margin-top:8px;">Suggested courses / links</h4>
+        <ul>
+          {% for k, url in suggestions.items() %}
+            <li><a href="{{ url }}" target="_blank">{{ k }}</a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+
+  <hr>
+  <div class="card">
+    <h3>Resume preview</h3>
+    <pre>{{ preview }}</pre>
+  </div>
+
+  <p style="margin-top:10px;"><a href="/">← Analyze another resume</a></p>
+
+  <!-- JSON chart payload -->
+  <script id="chart-data" type="application/json">{{ chart_data|safe }}</script>
+
+  <script>
+    const chartData = JSON.parse(document.getElementById('chart-data').textContent || '{}');
+
+    // Doughnut
+    const ctx = document.getElementById('doughnutChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Match','Remaining'],
+        datasets: [{
+          data: [chartData.ats_score || 0, Math.max(0, 100 - (chartData.ats_score || 0))],
+          backgroundColor: ['#4CAF50', '#E0E0E0']
+        }]
+      },
+      options: {
+        cutout: '70%',
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // Bar chart for matched vs missing
+    const ctx2 = document.getElementById('barChart').getContext('2d');
+    new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: ['Matched','Missing'],
+        datasets: [{
+          label: 'Keywords',
+          data: [chartData.matched_count || 0, chartData.missing_count || 0],
+          backgroundColor: ['#1976D2', '#FF7043']
+        }]
+      },
+      options: {
+        scales: { y: { beginAtZero: true, precision: 0 } },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // Top jobs chart
+    const topJobsCtx = document.getElementById('topJobsChart');
+    if (topJobsCtx) {
+      const ctx3 = topJobsCtx.getContext('2d');
+      new Chart(ctx3, {
+        type: 'bar',
+        data: {
+          labels: chartData.top_job_titles || [],
+          datasets: [{
+            label: 'Match Score',
+            data: chartData.top_job_scores || [],
+            backgroundColor: '#42A5F5'
+          }]
+        },
+        options: {
+          scales: { y: { beginAtZero: true } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // Trend chart (line)
+    const trendCtx = document.getElementById('trendChart');
+    if (trendCtx) {
+      const ctx4 = trendCtx.getContext('2d');
+      new Chart(ctx4, {
+        type: 'line',
+        data: {
+          labels: chartData.trend_labels || [],
+          datasets: [{
+            label: 'ATS Score',
+            data: chartData.trend_scores || [],
+            fill: false,
+            borderColor: '#FF7043',
+            tension: 0.2
+          }]
+        },
+        options: {
+          scales: { y: { beginAtZero: true, max: 100 } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

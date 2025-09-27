@@ -1,0 +1,4 @@
+title,description,skills
+"Data Scientist","Build ML models, feature engineering, EDA","Python;Pandas;scikit-learn;SQL"
+"ML Engineer","Deploy models, work with Docker and AWS","Python;TensorFlow;Docker;AWS"
+"Business Analyst","Data analysis and dashboarding in SQL and PowerBI","SQL;Excel;PowerBI"
